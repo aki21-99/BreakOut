@@ -8,7 +8,7 @@ Created on Sat Dec 15 00:24:11 2018
 
 #loading libraries
 import os
-os.chdir("/home/admin/stock_prediction/Data") #set directory
+os.chdir("/home/admin/stock_prediction/Data/New folder") #set directory
 import pandas as pd
 import matplotlib.pyplot as plt 
 pd.options.mode.chained_assignment = None
@@ -27,6 +27,21 @@ data = pd.concat(dfs)
     
 #data = pd.read_csv('all_stocks.csv', sep=",", header=None)
 data.columns = ["Stock_name", "Date", "Time", "Open","High","Low","Close","Volume"]
+
+#============================time===================
+
+data["Time"] = pd.to_datetime(data["Time"], format = "%H:%M").dt.time
+data["Date"] = pd.to_datetime(data["Date"], format = "%Y%m%d").dt.date
+data= data.sort_values(['Stock_name','Date','Time'])
+data = data.drop_duplicates()
+
+
+import datetime
+data.query("Time > datetime.time(9, 14) & Time < datetime.time(15, 31)",inplace = True) 
+
+
+data = data.reset_index(drop =True)
+
 
 
 #======================Data processing======================
@@ -65,7 +80,7 @@ import talib
 data["MA"] = talib.MA(data.Close,n )/data.Close
 data["EMA"] = talib.EMA(data.Close,n)/data.Close
 data["MOM"] = talib.MOM(data.Close,n)
-data["ROC"] = talib.ROC(data.Close,n)
+#data["ROC"] = talib.ROC(data.Close,n)
 data["ATR"] = talib.ATR(data.High,data.Low,data.Close)
 data["BBANDS"],data["BBANDS1"],data["BBANDS2"] = talib.BBANDS(data.Close)
 data["BBANDS"],data["BBANDS1"],data["BBANDS2"] =data["BBANDS"]/data.Close,data["BBANDS1"]/data.Close,data["BBANDS2"]/data.Close
@@ -142,7 +157,7 @@ data["MINUS_DI"] = talib.MINUS_DI(data.High, data.Low, data.Close, n)
 
 #NOTE: The MINUS_DM function has an unstable period.
 
-data["MINUS_DI"] = talib.MINUS_DM(data.High, data.Low, n)
+data["MINUS_DM"] = talib.MINUS_DM(data.High, data.Low, n)
 
 #Learn more about the Momentum at tadoc.org.
 #PLUS_DI - Plus Directional Indicator
@@ -246,8 +261,15 @@ def PPSR(df):
     return PP, R1, S1, R2, S2, R3, S3
 
 data["PP"],data["R1"],data["S1"],data["R2"],data["S2"],data["R3"], data["S3"] = PPSR(data)
+data["PP"],data["R1"],data["S1"],data["R2"],data["S2"],data["R3"], data["S3"] = data["PP"]/data["Close"],data["R1"]/data["Close"],data["S1"]/data["Close"],data["R2"]/data["Close"],data["S2"]/data["Close"],data["R3"]/data["Close"], data["S3"]/data["Close"]
+ 
+
+def Avg_vol(df, n):  
+    Avg_vol = pd.Series(df['Volume'].rolling(n).mean()) 
+    return Avg_vol
 
 
+data["vol_change"] = data["Volume"]/Avg_vol(data,n)
 
 #=====================Labelling data=================================
 
@@ -302,9 +324,14 @@ for i in range(0,len(data)):
 
 
        
-         
-
 #
+
+
+data.query("Time < datetime.time(15, 16)",inplace = True)          
+
+data =data.reset_index(drop = True)
+#
+
             
 #Looking the  features
 dataset = data[n:len(data)-(window_size -1)]
@@ -314,13 +341,13 @@ dataset = dataset.fillna(0)
 from collections import Counter
 Counter(dataset['15_min'])
 
-cols = ['Open', 'High', 'Low', 'Close', 'Volume',
-       'MA', 'EMA', 'MOM', 'ROC', 'ATR', 'BBANDS', 'BBANDS1', 'BBANDS2', 'ADX',
+cols = [
+       'MA', 'EMA', 'MOM', 'ATR', 'BBANDS', 'BBANDS1', 'BBANDS2', 'ADX',
        'ADXR', 'APO', 'aroondown', 'aroonup', 'AROONOSC', 'BOP', 'CCI', 'CMO',
-       'DX', 'macd', 'macdsignal', 'macdhist', 'MFI', 'MINUS_DI', 'PLUS_DI',
-       'PLUS_DM', 'PPO', 'ROCP', 'ROCR', 'ROCR100', 'RSI', 'slowk', 'slowd',
-       'fastk', 'fastd', 'TRIX', 'ULTOSC', 'WILLR', 'C-O', 'C-H', 'VWAP', 'PP',
-       'R1', 'S1', 'R2', 'S2', 'R3', 'S3']
+       'DX', 'macd', 'macdsignal', 'macdhist', 'MFI', 'MINUS_DI', 'MINUS_DM',
+       'PLUS_DI', 'PLUS_DM', 'PPO', 'ROC', 'ROCP', 'ROCR', 'ROCR100', 'RSI',
+       'slowk', 'slowd', 'fastk', 'fastd', 'TRIX', 'ULTOSC', 'WILLR', 'C-O',
+       'C-H', 'VWAP', 'PP', 'R1', 'S1', 'R2', 'S2', 'R3', 'S3', 'vol_change']
 columns = dataset.loc[:,cols].columns
 
 
@@ -373,6 +400,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, r
 from imblearn.over_sampling import SMOTE
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix
+from collections import Counter
 
 oversampler=SMOTE(random_state=0)
 os_features,os_labels=oversampler.fit_sample(X_train,y_train)
